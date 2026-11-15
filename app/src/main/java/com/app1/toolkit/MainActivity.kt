@@ -107,9 +107,19 @@ private fun App1Home() {
     }
 }
 
-private fun decodeBitmap(context: Context, uri: Uri): Bitmap =
-    context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it) }
-        ?: error("Unsupported or unreadable image")
+private fun decodeBitmap(context: Context, uri: Uri): Bitmap {
+    // Decode a bounded-size copy so large phone photos do not exhaust the app's memory.
+    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
+        ?: error("Cannot open selected image")
+    if (bounds.outWidth <= 0 || bounds.outHeight <= 0) error("Unsupported or unreadable image")
+
+    var sample = 1
+    while (bounds.outWidth / sample > 2400 || bounds.outHeight / sample > 2400) sample *= 2
+    val options = BitmapFactory.Options().apply { inSampleSize = sample }
+    return context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, options) }
+        ?: error("Could not decode selected image")
+}
 
 private fun compressImage(context: Context, uri: Uri): String {
     val bitmap = decodeBitmap(context, uri)
